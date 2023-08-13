@@ -270,7 +270,7 @@ class HICOEvaluator():
 
         gt_dets = {}
         for anno in anno_list:
-            if "test" not in anno['global_id']:
+            if "test" not in anno['global_id'] and "dual" not in anno['global_id']:
                 continue
 
             global_id = anno['global_id']
