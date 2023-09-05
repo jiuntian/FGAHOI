@@ -174,6 +174,13 @@ class HICOEvaluator():
         self.img_folder = os.path.join(dataset_path, 'images/test2015')
         self.anno_path = os.path.join(dataset_path, "annotations")
         self.annotations = self.load_gt_dets()
+        # hoi_list_new: load each of 600 categories
+        # {'id': '001',
+        #  'object': 'airplane',
+        #  'object_cat': 5,
+        #  'object_index': 4,
+        #  'verb': 'board',
+        #  'verb_id': 5},
         self.hoi_list = json.load(open(os.path.join(self.anno_path, 'hoi_list_new.json'), 'r'))
         self.file_name_to_obj_cat = json.load(open(os.path.join(self.anno_path, 'file_name_to_obj_cat.json'), "r"))
         self.nms_thresh = nms_thresh
@@ -270,7 +277,7 @@ class HICOEvaluator():
 
         gt_dets = {}
         for anno in anno_list:
-            if "test" not in anno['global_id']:
+            if "test" not in anno['global_id'] and "id" not in anno['global_id']:
                 continue
 
             global_id = anno['global_id']
@@ -448,7 +455,8 @@ class HICOEvaluator():
         npos = 0
         for global_id in global_ids:
             if mode == 'ko':
-                if global_id + ".jpg" not in self.file_name_to_obj_cat:
+                if global_id + ".jpg" not in self.file_name_to_obj_cat and \
+                        global_id + ".png" not in self.file_name_to_obj_cat:
                     continue
                 obj_cats = self.file_name_to_obj_cat[global_id + ".jpg"]
                 if int(obj_cate) not in obj_cats:

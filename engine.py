@@ -91,7 +91,7 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
     preds = []
     gts = []
     indices = []
-    for samples, targets in metric_logger.log_every(data_loader, 10, header):
+    for samples, targets in metric_logger.log_every(data_loader, 1000, header):
         samples = samples.to(device)
 
         outputs = model(samples)
