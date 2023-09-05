@@ -245,7 +245,8 @@ def main(args):
     os.makedirs(args.output_dir, exist_ok=True)
     os.environ['output_dir'] = args.output_dir
     logger = setup_logger(output=os.path.join(args.output_dir, 'info.txt'), distributed_rank=args.rank, color=False, name="DAB-DETR")
-    logger.info("git:\n  {}\n".format(utils.get_sha()))
+    # do not print git
+    # logger.info("git:\n  {}\n".format(utils.get_sha()))
     logger.info("Command: "+' '.join(sys.argv))
     if args.rank == 0:
         save_json_path = os.path.join(args.output_dir, "config.json")
@@ -253,14 +254,17 @@ def main(args):
         with open(save_json_path, 'w') as f:
             json.dump(vars(args), f, indent=2)
         logger.info("Full config saved to {}".format(save_json_path))
-    logger.info('world size: {}'.format(args.world_size))
-    logger.info('rank: {}'.format(args.rank))
-    logger.info('local_rank: {}'.format(args.local_rank))
-    logger.info("args: " + str(args) + '\n')
+    if args.distributed:
+        logger.info('world size: {}'.format(args.world_size))
+        logger.info('rank: {}'.format(args.rank))
+        logger.info('local_rank: {}'.format(args.local_rank))
+    # do not print args
+    # logger.info("args: " + str(args) + '\n')
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
-    print(args)
+    # do not print args
+    # print(args)
 
     device = torch.device(args.device)
 
@@ -273,7 +277,7 @@ def main(args):
     # build model
     model, criterion, postprocessors = build_model_main(args)
 
-    print('print loaded model')
+    # print('print loaded model')
 
     wo_class_error = False
     model.to(device)
@@ -283,8 +287,10 @@ def main(args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info('number of params:'+str(n_parameters))
-    logger.info("params:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
+
+    # do not print params
+    # logger.info('number of params:'+str(n_parameters))
+    # logger.info("params:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
 
 
     param_dicts = [
