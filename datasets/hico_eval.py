@@ -188,6 +188,7 @@ class HICOEvaluator():
         self.global_ids = self.annotations.keys()
         self.hoi_id_to_num = json.load(open(os.path.join(self.anno_path, 'hoi_id_to_num.json'), "r"))
         self.rare_id_json = [key for key, item in self.hoi_id_to_num.items() if item['rare']]
+        # id = "001" -- "600"
         
         self.correct_mat = np.load(os.path.join(self.anno_path, 'corre_hico.npy'))
         self.valid_obj_ids = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
@@ -199,6 +200,20 @@ class HICOEvaluator():
                               72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
                               82, 84, 85, 86, 87, 88, 89, 90)
         self.valid_verb_ids = list(range(1, 118))
+        self.zeroshot_ids = ['009', '023', '028', '045', '051', '056', '063', '067', '071',
+       '077', '078', '081', '084', '085', '091', '100', '101', '105',
+       '108', '128', '136', '137', '150', '159', '169', '180', '182',
+       '185', '189', '190', '193', '196', '199', '206', '207', '217',
+       '223', '230', '239', '240', '255', '256', '258', '261', '262',
+       '263', '275', '280', '281', '282', '287', '290', '293', '304',
+       '312', '316', '318', '326', '334', '335', '346', '351', '352',
+       '355', '359', '365', '380', '382', '390', '391', '392', '396',
+       '398', '399', '400', '402', '403', '404', '406', '408', '411',
+       '417', '419', '428', '430', '437', '440', '441', '450', '464',
+       '470', '475', '483', '486', '499', '500', '505', '510', '518',
+       '521', '523', '527', '532', '536', '540', '547', '548', '549',
+       '553', '556', '557', '561', '582', '587', '593', '594', '596',
+       '597', '598', '600']
 
         self.pred_anno = {}
         self.preds_t = []
@@ -368,6 +383,51 @@ class HICOEvaluator():
 
         print(f'APs have been saved to {self.out_dir}')
         return {"mAP_def": mAP['mAP'], "mAP_def_rare": mAP['mAP_rare'], "mAP_def_non_rare": mAP['mAP_non_rare']}
+    
+    def evaluation_zeroshot(self):
+        outputs = []
+        for hoi in self.hoi_list:
+            o = self.eval_hoi(hoi['id'], self.global_ids, self.annotations, self.pred_anno, self.out_dir)
+            outputs.append(o)
+
+        mAP = {
+            'AP': {},
+            'mAP': 0,
+            'invalid': 0,
+            'mAP_seen': 0,
+            'mAP_unseen': 0,
+        }
+        map_ = 0
+        map_seen = 0
+        map_unseen = 0
+        count = 0
+        count_seen = 0
+        count_unseen = 0
+        for ap, hoi_id in outputs:
+            mAP['AP'][hoi_id] = ap
+            if not np.isnan(ap):
+                count += 1
+                map_ += ap
+                if hoi_id in self.zeroshot_ids:
+                    count_unseen += 1
+                    map_unseen += ap
+                else:
+                    count_seen += 1
+                    map_seen += ap
+
+        mAP['mAP'] = map_ / count
+        mAP['invalid'] = len(outputs) - count
+        mAP['mAP_unseen'] = map_unseen / count_unseen
+        mAP['mAP_seen'] = map_seen / count_seen
+
+        mAP_json = os.path.join(
+            self.out_dir,
+            f'epo_{self.epoch}_mAP_zeroshot.json')
+        dump_json_object(mAP, mAP_json)
+
+        print(f'APs have been saved to {self.out_dir}')
+        return {"mAP_zs": mAP['mAP'], "mAP_zs_unsen": mAP['mAP_unseen'], "mAP_zs_seen": mAP['mAP_seen']}
+
 
     def evaluation_ko(self):
         outputs = []

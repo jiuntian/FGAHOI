@@ -201,6 +201,7 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true', help="eval only. w/o Training.")
     parser.add_argument('--eval_extra', action='store_true', help="eval only. w/o Training.")
+    parser.add_argument('--eval_zs', action='store_true', help="eval only. zeroshot. w/o Training.")
     parser.add_argument('--num_workers', default=2, type=int)
     parser.add_argument('--debug', action='store_true', 
                         help="For debug only. It will perform only a few steps during trainig and val.")

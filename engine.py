@@ -123,6 +123,8 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
         stats.update(stats_ko)
         if args.eval_extra:
             evaluator.evaluation_extra()
+        if args.eval_zs:
+            evaluator.evaluation_zeroshot()
 
         # if utils.is_main_process():              
         #     writer.add_scalar('mAP_def/mAP_def',stats['mAP_def'] , epoch)
