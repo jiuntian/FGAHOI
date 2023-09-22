@@ -292,7 +292,7 @@ class HICOEvaluator():
 
         gt_dets = {}
         for anno in anno_list:
-            if "test" not in anno['global_id'] and "id" not in anno['global_id']:
+            if "test" not in anno['global_id'] and "dual" not in anno['global_id'] and "id" not in anno['global_id']:
                 continue
 
             global_id = anno['global_id']
@@ -515,8 +515,7 @@ class HICOEvaluator():
         npos = 0
         for global_id in global_ids:
             if mode == 'ko':
-                if global_id + ".jpg" not in self.file_name_to_obj_cat and \
-                        global_id + ".png" not in self.file_name_to_obj_cat:
+                if global_id + ".jpg" not in self.file_name_to_obj_cat:
                     continue
                 obj_cats = self.file_name_to_obj_cat[global_id + ".jpg"]
                 if int(obj_cate) not in obj_cats:
