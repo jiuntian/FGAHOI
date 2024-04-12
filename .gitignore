@@ -1,6 +1,9 @@
-data
-__pycache__
-.idea
-logs
-*.pth
+logs/
+data/
+__pycache__/
+param/swin_*.pth
+weights/FGAHOI_*.pth
 *.zip
+models/dab_deformable_detr/ops/build/
+models/dab_deformable_detr/ops/MultiScaleDeformableAttention.egg-info/
+models/dab_deformable_detr/ops/dist/MultiScaleDeformableAttention-1.0-py3.8-linux-x86_64.egg
