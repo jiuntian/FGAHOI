@@ -21,7 +21,8 @@ import torch.distributed as dist
 
 import datasets
 import util.misc as utils
-from datasets import build_dataset
+# from datasets import build_dataset
+from datasets.hico import build_hico_custom_imgroot
 from engine import evaluate_hoi, train_one_epoch
 from models import build_DABDETR, build_dab_deformable_detr
 from util.utils import clean_state_dict
@@ -194,7 +195,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda', help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--resume', default="", help='resume from checkpoint')
-    parser.add_argument('--pretrain_model_path', default = "/mnt/gluster/home/mashuailei/DAB-DETR-main/dahoi/logs/hake_tiny_base/checkpoint0133.pth", help='load from other checkpoint')
+    # parser.add_argument('--pretrain_model_path', default = "/mnt/gluster/home/mashuailei/DAB-DETR-main/dahoi/logs/hake_tiny_base/checkpoint0133.pth", help='load from other checkpoint')
     parser.add_argument('--finetune_ignore', type=str, nargs='+', 
                         help="A list of keywords to ignore when loading pretrained models.")
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
@@ -223,7 +224,9 @@ def get_args_parser():
     parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--amp', action='store_true',
                         help="Train with mixed precision")
-
+    
+    # custom
+    parser.add_argument("--img_folder", required=True)
 
     return parser
 
@@ -239,33 +242,17 @@ def build_model_main(args):
     return model, criterion, postprocessors
 
 def main(args):
-    utils.init_distributed_mode(args)
-    # torch.autograd.set_detect_anomaly(True)
-    
     # setup logger
     os.makedirs(args.output_dir, exist_ok=True)
     os.environ['output_dir'] = args.output_dir
     logger = setup_logger(output=os.path.join(args.output_dir, 'info.txt'), distributed_rank=args.rank, color=False, name="DAB-DETR")
-    # do not print git
-    # logger.info("git:\n  {}\n".format(utils.get_sha()))
-    logger.info("Command: "+' '.join(sys.argv))
+
     if args.rank == 0:
         save_json_path = os.path.join(args.output_dir, "config.json")
         # print("args:", vars(args))
         with open(save_json_path, 'w') as f:
             json.dump(vars(args), f, indent=2)
         logger.info("Full config saved to {}".format(save_json_path))
-    if args.distributed:
-        logger.info('world size: {}'.format(args.world_size))
-        logger.info('rank: {}'.format(args.rank))
-        logger.info('local_rank: {}'.format(args.local_rank))
-    # do not print args
-    # logger.info("args: " + str(args) + '\n')
-
-    if args.frozen_weights is not None:
-        assert args.masks, "Frozen training is meant for segmentation only"
-    # do not print args
-    # print(args)
 
     device = torch.device(args.device)
 
@@ -277,172 +264,20 @@ def main(args):
 
     # build model
     model, criterion, postprocessors = build_model_main(args)
-
-    # print('print loaded model')
-
-    wo_class_error = False
     model.to(device)
-
     model_without_ddp = model
-    if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
-        model_without_ddp = model.module
-    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    # do not print params
-    # logger.info('number of params:'+str(n_parameters))
-    # logger.info("params:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
-
-
-    param_dicts = [
-        {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
-        {
-            "params": [p for n, p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
-            "lr": args.lr_backbone,
-        }
-    ]
-
-    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
-                                  weight_decay=args.weight_decay)
-    
-    print('start loading dataset')
-
-    dataset_train = build_dataset(image_set='train', args=args)
-    dataset_val = build_dataset(image_set='val', args=args)
-
-    if args.distributed:
-        sampler_train = DistributedSampler(dataset_train)
-        sampler_val = DistributedSampler(dataset_val, shuffle=False)
-    else:
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
-
-    batch_sampler_train = torch.utils.data.BatchSampler(
-        sampler_train, args.batch_size, drop_last=True)
-
-    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    dataset_val = build_hico_custom_imgroot(img_folder=args.img_folder, args=args)
+    sampler_val = torch.utils.data.SequentialSampler(dataset_val)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-    print('load dataset done')
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
-
-    if args.frozen_weights is not None:
-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-        model_without_ddp.detr.load_state_dict(checkpoint['model'])
 
     output_dir = Path(args.output_dir)
+    checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+    model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
 
-    if args.pretrain_model_path:
-        print('Initialized from the pre-training model')
-        checkpoint = torch.load(args.pretrain_model_path, map_location='cpu')
-        state_dict = checkpoint['model']
-
-        # for key in list(state_dict.keys()):
-        #     if 'class_embed' in key or 'bbox_embed' in key:
-        #         state_dict.pop(key)
-        # msg = model_without_ddp.load_state_dict(state_dict, strict=False)
-        # print(msg)
-
-        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(state_dict, strict=False)
-        unexpected_keys = [k for k in unexpected_keys if not (k.endswith('total_params') or k.endswith('total_ops'))]
-        # for name, par in model_without_ddp.named_parameters():
-        #     if name not in missing_keys:
-        #         par.requires_grad = False
-        #     else:
-        #         par.requires_grad = True
-        if len(missing_keys) > 0:
-            print('Missing Keys: {}'.format(missing_keys))
-        if len(unexpected_keys) > 0:
-            print('Unexpected Keys: {}'.format(unexpected_keys))  
-
-
-    if args.resume and args.eval == False:
-        if args.resume.startswith('https'):
-            checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location='cpu', check_hash=True)
-        else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
-        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
-        unexpected_keys = [k for k in unexpected_keys if not (k.endswith('total_params') or k.endswith('total_ops'))]
-
-        # for name, par in model_without_ddp.named_parameters():
-        #     if name not in missing_keys:
-        #         par.requires_grad = False
-        #     else:
-        #         par.requires_grad = True
-
-        if len(missing_keys) > 0:
-            print('Missing Keys: {}'.format(missing_keys))
-        if len(unexpected_keys) > 0:
-            print('Unexpected Keys: {}'.format(unexpected_keys))
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-            import copy
-            # checkpoint["lr_scheduler"]["last_epoch"] = 150
-            p_groups = copy.deepcopy(optimizer.param_groups)
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            for pg, pg_old in zip(optimizer.param_groups, p_groups):
-                pg['lr'] = pg_old['lr']
-                pg['initial_lr'] = pg_old['initial_lr']
-            print(optimizer.param_groups)
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            # todo: this is a hack for doing experiment that resume from checkpoint and also modify lr scheduler (e.g., decrease lr in advance).
-            args.override_resumed_lr_drop = True
-            if args.override_resumed_lr_drop:
-                print('Warning: (hack) args.override_resumed_lr_drop is set to True, so args.lr_drop would override lr_drop in resumed lr_scheduler.')
-                lr_scheduler.step_size = args.lr_drop
-                lr_scheduler.base_lrs = list(map(lambda group: group['initial_lr'], optimizer.param_groups))
-            lr_scheduler.step(lr_scheduler.last_epoch)
-            args.start_epoch = checkpoint['epoch'] + 1
-    elif args.resume and args.eval:
-        checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
-        model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
-
-    if args.eval:
-        test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device, output_dir, -1, args)
-        return
-
-    print("Start training")
-    start_time = time.time()
-    for epoch in range(args.start_epoch, args.epochs):
-        
-        if args.distributed:
-            sampler_train.set_epoch(epoch)
-        train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch, args.clip_max_norm)
-        lr_scheduler.step()
-        if args.output_dir:
-            checkpoint_paths = [output_dir / 'checkpoint.pth']
-            # extra checkpoint before LR drop and every 5 epochs
-            # if epoch > 5:
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0 or epoch > args.lr_drop - 1:
-                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
-            for checkpoint_path in checkpoint_paths:
-                utils.save_on_master({
-                    'model': model_without_ddp.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
-                    'epoch': epoch,
-                    'args': args,
-                }, checkpoint_path)
-
-        test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device, output_dir, epoch, args)
-
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     **{f'test_{k}': v for k, v in test_stats.items()},
-                     'epoch': epoch,
-                     'n_parameters': n_parameters}
-
-        if args.output_dir and utils.is_main_process():
-            with (output_dir / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
-
-    total_time = time.time() - start_time
-    total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    if utils.get_rank() == 0:
-        logger.info('\nTraining time {}'.format(total_time_str))
-
-
+    test_stats = evaluate_hoi(args.dataset_file, model, postprocessors, data_loader_val, args.subject_category_id, device, output_dir, -1, args)
+    return test_stats
 
 
 if __name__ == '__main__':

@@ -285,7 +285,7 @@ class DABDeformableDETR(nn.Module):
             # H, W = tensor.shape[-2], tensor.shape[-1]
             coords_h = torch.linspace(0, 1, tensor.shape[-2]//self.offset_stride[l], dtype=torch.float32, device=shift.device)
             coords_w = torch.linspace(0, 1, tensor.shape[-1]//self.offset_stride[l], dtype=torch.float32, device=shift.device)
-            coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+            coords = torch.stack(torch.meshgrid([coords_h, coords_w], indexing="ij"))  # 2, Wh, Ww
             reference = coords.unsqueeze(0).repeat(shift.shape[0],1,1,1) # B 2 H W
             anchor = reference + shift
             anchor = einops.rearrange(anchor, 'B C H W -> B (H W) C') # B * (H/S * W/S) * 2

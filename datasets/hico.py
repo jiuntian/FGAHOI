@@ -272,3 +272,23 @@ def build(image_set, args):
         dataset.set_rare_hois(PATHS['train'][1])
         dataset.load_correct_mat(CORRECT_MAT_PATH)
     return dataset
+
+
+def build_hico_custom_imgroot(img_folder, args):
+    root = Path(args.hoi_path)
+    assert root.exists(), f'provided HOI path {root} does not exist'
+    PATHS = {
+        'train': (root / 'images' / 'train2015', root / 'annotations' / 'trainval_hico.json'),
+        'val': (root / 'images' / 'test2015', root / 'annotations' / 'test_hico.json')
+    }
+    image_set = "val"
+    CORRECT_MAT_PATH = root / 'annotations' / 'corre_hico.npy'
+    # img_folder, anno_file = PATHS[image_set]
+    anno_file = root / 'annotations' / 'test_hico.json'
+    img_folder = Path(img_folder)
+    dataset = HICODetection(image_set, img_folder, anno_file, transforms=make_hico_transforms(image_set),
+                            num_queries=args.num_queries)
+    if image_set == 'val':
+        dataset.set_rare_hois(PATHS['train'][1])
+        dataset.load_correct_mat(CORRECT_MAT_PATH)
+    return dataset
