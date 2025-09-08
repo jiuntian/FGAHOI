@@ -94,22 +94,22 @@ class FGAHOI:
         return main(test_args)
 
 if __name__ == "__main__":
-    
-    # FGAHOI.preprocess_generated(generated_path="/home/jiuntian/data2/id-v8-525k-7385",
-    #                             hico_path="/home/jiuntian/data2/kontext/fgahoi/data/hico_20160224_det")
-    
     parser = argparse.ArgumentParser(description="Test script for FGAHOI")
     parser.add_argument("--hoi_path", required=True, help="Path to the dataset to be evaluated")
     # parser.add_argument("--output_dir", default="logs")
+    parser.add_argument("--hicodet_path", default="data/hico_20160224_det")
     parser.add_argument("--backbone", default="swin_tiny", choices=["swin_tiny", "swin_large_384"])
     parser.add_argument("--swin_weight_path", default="param/swin_tiny_patch4_window7_224.pth")
     parser.add_argument("--fgahoi_weight_path", default="weights/FGAHOI_Tiny.pth")
     args = parser.parse_args()
     
+    FGAHOI.preprocess_generated(generated_path=args.hoi_path,
+                                hico_path=args.hicodet_path)
+    
     metric = FGAHOI.eval(
         hoi_path=args.hoi_path,
         # output_dir=args.output_dir,
-        output_dir=os.path.join(args.hoi_path, "eval_results"),
+        output_dir=os.path.join(args.hoi_path, f"eval_results_{args.backbone}"),
         backbone=args.backbone,
         swin_weight_path=args.swin_weight_path,
         fgahoi_weight_path=args.fgahoi_weight_path
