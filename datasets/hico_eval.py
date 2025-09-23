@@ -689,8 +689,26 @@ class HICOEvaluator():
 
 
 if __name__ == "__main__":
-    import torch
-    preds = torch.load("../preds.pt")
-    gts = torch.load("../gts.pt")
-    evaluator = HICOEvaluator(preds, gts, "../data/hico_20160224_det/", "../", -1)
-    evaluator.evaluation_extra()
+    # import torch
+    # preds = torch.load("../preds.pt")
+    # gts = torch.load("../gts.pt")
+    # evaluator = HICOEvaluator(preds, gts, "../data/hico_20160224_det/", "../", -1)
+    # evaluator.evaluation_extra()
+    
+    import pickle
+    path = '/home/jiuntian/data2/kontext/generated/v13-15.4k-cfg3-h512-aiprompt-s666/'
+    preds_path = path + "/eval_results_swin_tiny/preds_gts_-1.pkl"
+    data = pickle.load(open(preds_path, 'rb'))
+
+    data['dataset_path'] = path
+    data['out_dir'] = path + "/eval_results_test/"
+    if not os.path.exists(data['out_dir']):
+        os.makedirs(data['out_dir'])
+
+    evaluator = HICOEvaluator(data['preds'], data['gts'], data['dataset_path'], data['out_dir'], data['epoch'], data['use_nms'], data['nms_thresh'])
+    stats = evaluator.evaluation_default()
+    print('\n--------------------\ndefault mAP: {}\ndefault mAP rare: {}\ndefault mAP non-rare: {}\n--------------------'.format(stats['mAP_def'], stats['mAP_def_rare'], stats['mAP_def_non_rare']))
+    stats_ko = evaluator.evaluation_ko()
+    print('\n--------------------\nko mAP: {}\nko mAP rare: {}\nko mAP non-rare: {}\n--------------------'.format(stats_ko['mAP_ko'], stats_ko['mAP_ko_rare'], stats_ko['mAP_ko_non_rare']))
+    stats.update(stats_ko)
+

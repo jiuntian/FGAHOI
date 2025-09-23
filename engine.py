@@ -109,6 +109,18 @@ def evaluate_hoi(dataset_file, model, postprocessors, data_loader, subject_categ
     _, indices = np.unique(img_ids, return_index=True)
     preds = [img_preds for i, img_preds in enumerate(preds) if i in indices]
     gts = [img_gts for i, img_gts in enumerate(gts) if i in indices]
+    
+    # data = {
+    #     'preds': preds,
+    #     'gts': gts,
+    #     'dataset_path': args.hoi_path,
+    #     'out_dir': out_dir,
+    #     'epoch': epoch,
+    #     'use_nms': args.use_nms,
+    #     'nms_thresh': args.nms_thresh,
+    # }
+    # import pickle
+    # pickle.dump(data, open(os.path.join(out_dir, 'preds_gts_{}.pkl'.format(epoch)), 'wb'))
 
     if dataset_file == 'hico':
         evaluator = HICOEvaluator(preds, gts, args.hoi_path, out_dir, epoch, use_nms=args.use_nms, nms_thresh=args.nms_thresh)
