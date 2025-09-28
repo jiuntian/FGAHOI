@@ -36,7 +36,7 @@ class FGAHOI:
         for anno in test_hico:
             # assert file is exists
             assert os.path.exists(os.path.join(generated_path, anno["file_name"])), f"File {anno['file_name']} not found in {generated_path}.\
-                Mismatched files: {glob.glob(generated_path+'/*.jpg')} != {len(test_hico)}"
+                Mismatched files: Found {len(glob.glob(generated_path+'/*.jpg'))} != Required {len(test_hico)}"
         # assert len(glob.glob(generated_path+'/*.jpg')) == len(test_hico), \
         #     f"Mismatched number of generated images {len(glob.glob(generated_path+'/*.jpg'))} != {len(test_hico)}"
         print(f"We have {len(test_hico)} images.")
