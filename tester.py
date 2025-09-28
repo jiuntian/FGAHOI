@@ -14,7 +14,9 @@ class FGAHOI:
     @classmethod
     def preprocess_generated(cls,
                              generated_path,
-                             hico_path):
+                             hico_path,
+                             use_hico2k=False,
+                             hico2k_path="../dataset_utils/sorted_test_hico_selected_idx.json"):
         """
         only anno_list.json need resize the bbox, according to new generated height and width
         we do not need to process test_hico.json and trainval_hico.json
@@ -23,10 +25,20 @@ class FGAHOI:
             generated_path (str): Path to the directory containing generated images.
             hico_path (str): Path to the real HICO dataset directory.
         """
-        test_hico = json.load(open(os.path.join(hico_path, "annotations", "test_hico.json")))
+        if use_hico2k:
+            selected_idx = json.load(open(hico2k_path))
+            print(f"Using HICO-2k subset with {len(selected_idx)} images.")
+            all_test_hico = json.load(open(os.path.join(hico_path, "annotations", "test_hico.json")))
+            test_hico = [all_test_hico[i] for i in selected_idx]
+        else:
+            test_hico = json.load(open(os.path.join(hico_path, "annotations", "test_hico.json")))
         anno_list = json.load(open(os.path.join(hico_path, "annotations", "anno_list.json")))
-        assert len(glob.glob(generated_path+'/*.jpg')) == len(test_hico), \
-            f"Mismatched number of generated images {len(glob.glob(generated_path+'/*.jpg'))} != {len(test_hico)}"
+        for anno in test_hico:
+            # assert file is exists
+            assert os.path.exists(os.path.join(generated_path, anno["file_name"])), f"File {anno['file_name']} not found in {generated_path}.\
+                Mismatched files: {glob.glob(generated_path+'/*.jpg')} != {len(test_hico)}"
+        # assert len(glob.glob(generated_path+'/*.jpg')) == len(test_hico), \
+        #     f"Mismatched number of generated images {len(glob.glob(generated_path+'/*.jpg'))} != {len(test_hico)}"
         print(f"We have {len(test_hico)} images.")
         
         anno_list_to_idx_map = {x["global_id"]: i for i, x in enumerate(anno_list)}
@@ -101,11 +113,15 @@ if __name__ == "__main__":
     parser.add_argument("--backbone", default="swin_tiny", choices=["swin_tiny", "swin_large_384"])
     parser.add_argument("--swin_weight_path", default="param/swin_tiny_patch4_window7_224.pth")
     parser.add_argument("--fgahoi_weight_path", default="weights/FGAHOI_Tiny.pth")
+    parser.add_argument("--use_hico2k", action="store_true",)
+    parser.add_argument("--hico2k_path", default="../dataset_utils/sorted_test_hico_selected_idx.json",)
     args = parser.parse_args()
     
     FGAHOI.preprocess_generated(generated_path=args.hoi_path,
-                                hico_path=args.hicodet_path)
-    
+                                hico_path=args.hicodet_path,
+                                use_hico2k=args.use_hico2k,
+                                hico2k_path=args.hico2k_path)
+
     metric = FGAHOI.eval(
         hoi_path=args.hoi_path,
         # output_dir=args.output_dir,

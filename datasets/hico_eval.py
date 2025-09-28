@@ -289,7 +289,12 @@ class HICOEvaluator():
         # Load anno_list
         print('Loading anno_list.json ...')
         anno_list = json.load(open(os.path.join(self.anno_path, 'anno_list.json'), "r"))
-
+        
+        # only keep test set that is available
+        test_anno = json.load(open(os.path.join(self.anno_path, 'test_hico.json'), "r"))
+        anno_list = [anno for anno in anno_list if anno['global_id'] in [x['file_name'].split('.')[0] for x in test_anno]]
+        print(f"Filtered and found {len(anno_list)} test images in anno_list.json for EVAL.")
+        
         gt_dets = {}
         for anno in anno_list:
             if "test" not in anno['global_id'] and "dual" not in anno['global_id'] and "id" not in anno['global_id']:
