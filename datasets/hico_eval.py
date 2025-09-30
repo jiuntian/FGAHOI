@@ -109,6 +109,21 @@ def compute_ap(precision, recall):
 
     return ap
 
+def compute_ar(precision, recall):
+    if np.any(np.isnan(precision)):
+        return np.nan
+
+    ar = 0
+    for t in np.arange(0, 1.0, 0.1):  # 0, 0.1, 0.2, ..., 0.9
+        selected_p = recall[precision >= t]
+        if selected_p.size == 0:
+            p = 0
+        else:
+            p = np.max(selected_p)
+        ar += p / 10.
+
+    return ar
+
 def compute_pr(y_true, y_score, npos):
     sorted_y_true = [y for y, _ in
                     sorted(zip(y_true, y_score), key=lambda x: x[1], reverse=True)]
@@ -353,19 +368,30 @@ class HICOEvaluator():
 
         mAP = {
             'AP': {},
+            'AR': {},
             'mAP': 0,
+            'mAR': 0,
             'invalid': 0,
             'mAP_rare': 0,
             'mAP_non_rare': 0,
+            'mAR_rare': 0,
+            'mAR_non_rare': 0,
         }
         map_ = 0
         map_rare = 0
         map_non_rare = 0
+        mar_ = 0
+        mar_rare = 0
+        mar_non_rare = 0
         count = 0
         count_rare = 0
         count_non_rare = 0
-        for ap, hoi_id in outputs:
+        count_ar_ = 0
+        count_rare_ar = 0
+        count_non_rare_ar = 0
+        for ap, ar, hoi_id in outputs:
             mAP['AP'][hoi_id] = ap
+            mAP['AR'][hoi_id] = ar
             if not np.isnan(ap):
                 count += 1
                 map_ += ap
@@ -375,11 +401,23 @@ class HICOEvaluator():
                 else:
                     count_non_rare += 1
                     map_non_rare += ap
+            if not np.isnan(ar):
+                count_ar_ += 1
+                mar_ += ar
+                if hoi_id in self.rare_id_json:
+                    count_rare_ar += 1
+                    mar_rare += ar
+                else:
+                    count_non_rare_ar += 1
+                    mar_non_rare += ar
 
         mAP['mAP'] = map_ / count
+        mAP['mAR'] = mar_ / count_ar_
         mAP['invalid'] = len(outputs) - count
         mAP['mAP_rare'] = map_rare / count_rare
         mAP['mAP_non_rare'] = map_non_rare / count_non_rare
+        mAP['mAR_rare'] = mar_rare / count_rare_ar
+        mAP['mAR_non_rare'] = mar_non_rare / count_non_rare_ar
 
         mAP_json = os.path.join(
             self.out_dir,
@@ -387,7 +425,7 @@ class HICOEvaluator():
         dump_json_object(mAP, mAP_json)
 
         print(f'APs have been saved to {self.out_dir}')
-        return {"mAP_def": mAP['mAP'], "mAP_def_rare": mAP['mAP_rare'], "mAP_def_non_rare": mAP['mAP_non_rare']}
+        return {"mAP_def": mAP['mAP'], "mAP_def_rare": mAP['mAP_rare'], "mAP_def_non_rare": mAP['mAP_non_rare'], "mAR_def": mAP['mAR'], "mAR_def_rare": mAP['mAR_rare'], "mAR_def_non_rare": mAP['mAR_non_rare']}
     
     def evaluation_zeroshot(self):
         outputs = []
@@ -455,7 +493,7 @@ class HICOEvaluator():
         count = 0
         count_rare = 0
         count_non_rare = 0
-        for ap, hoi_id in outputs:
+        for ap, ar, hoi_id in outputs:
             mAP['AP'][hoi_id] = ap
             if not np.isnan(ap):
                 count += 1
@@ -560,11 +598,13 @@ class HICOEvaluator():
         precision, recall, mark = compute_pr(y_true, y_score, npos)
         if not mark:
             ap = 0
+            ar = 0
         else:
             ap = compute_ap(precision, recall)
+            ar = compute_ar(precision, recall)
         # Compute AP
         # print(f'AP:{ap}')
-        return (ap, hoi_id)
+        return (ap, ar, hoi_id)
 
     def eval_extra(self, hoi_id, global_ids, gt_dets, pred_anno):
         npos_all = 0
@@ -716,4 +756,5 @@ if __name__ == "__main__":
     stats_ko = evaluator.evaluation_ko()
     print('\n--------------------\nko mAP: {}\nko mAP rare: {}\nko mAP non-rare: {}\n--------------------'.format(stats_ko['mAP_ko'], stats_ko['mAP_ko_rare'], stats_ko['mAP_ko_non_rare']))
     stats.update(stats_ko)
+    print('\n--------------------\ndefault mAR: {}\ndefault mAR rare: {}\ndefault mAR non-rare: {}\n--------------------'.format(stats['mAR_def'], stats['mAR_def_rare'], stats['mAR_def_non_rare']))
 
