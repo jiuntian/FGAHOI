@@ -121,11 +121,11 @@ if __name__ == "__main__":
                                 hico_path=args.hicodet_path,
                                 use_hico2k=args.use_hico2k,
                                 hico2k_path=args.hico2k_path)
-
+    output_name = "_hico2k" if args.use_hico2k else ""
     metric = FGAHOI.eval(
         hoi_path=args.hoi_path,
         # output_dir=args.output_dir,
-        output_dir=os.path.join(args.hoi_path, f"eval_results_{args.backbone}"),
+        output_dir=os.path.join(args.hoi_path, f"eval_results_{args.backbone}{output_name}"),
         backbone=args.backbone,
         swin_weight_path=args.swin_weight_path,
         fgahoi_weight_path=args.fgahoi_weight_path
